@@ -1,47 +1,55 @@
-# Research: 대면 1:1 대화 멀티모달 감정 분석
+# Research: 대면 세일즈 미팅 멀티모달 코칭 분석
 
-## 미결 사항에 대한 결정 (spec의 NEEDS CLARIFICATION)
+## 확정된 결정 (2026-11-25 사용자 결정)
 
-### R1. 주 사용 목적 (FR-016)
-- **Decision**: v1은 연구·상담 보조 용도로 한정한다. 채용 평가 모드는 제공하지 않는다.
-- **Rationale**: 채용·교육 분야 감정 인식은 EU AI Act 금지 대상이고, 국내에서도 AI 면접 설명 의무와 편향 문제가 있다. 연구·상담 보조는 사람 판단을 돕는 형태로 위험이 낮다.
-- **Alternatives considered**: 채용 면접 보조 — 법률 검토와 편향 감사가 선행되어야 하므로 v2 이후로 연기.
+### R1. 사용 목적
+- **Decision**: 세일즈 코칭. 영업 담당자(A)와 고객 또는 고객 역할(B)의 1:1 대면 대화를 분석한다. 롤플레이 모드를 기본으로 하고, 실제 고객 미팅은 고객 별도 동의 시에만 허용한다.
+- **Rationale**: 세일즈 코칭에서 효과가 검증된 지표는 말하기·듣기 비율, 독백 길이, 질문 빈도 같은 대화 행동이다. 이 행동 지표를 중심에 두고, 감정 추정은 고객 반응 신호로 보조한다.
+- **리스크 대응**: 직장 내 사용이므로 인사평가 사용 금지(FR-018), 코칭 힌트는 코치 화면에만 표시(FR-014), EU 배포 시 직원 대상 감정 추정 비활성화.
 
-### R2. 시선 정밀도 (FR-017)
-- **Decision**: RGB 기반 시선 추정(L2CS-Net)을 기본으로 하고, `GazeSource` 인터페이스로 Tobii/Pupil Labs 아이트래커를 나중에 연결할 수 있게 한다.
-- **Rationale**: 1:1 대화에서 핵심 지표는 "상대 얼굴을 보는가"이며, 1m 거리에서 얼굴 영역은 약 10° 이상이라 3~5° 오차로도 판정 가능하다. 아이트래커 착용 부담을 피한다.
-- **Alternatives considered**: 안경형 아이트래커 기본 탑재 — 정밀하지만 비용과 착용 부담이 크다.
+### R2. 시선 추정 방식: 카메라 + 조명 + 마이크 결합
+- **Decision**: 아이트래커 없이 세 장치를 함께 쓴다.
+  1. **카메라**: 화자별 정면 RGB 카메라(눈높이, 상대 얼굴 방향에서 약 15° 이내)로 L2CS-Net 시선 추정 + MediaPipe 홍채 랜드마크.
+  2. **조명**: 화자별 확산형 LED 패널(5600K, 정면 상단 30~45°)로 눈 영역 대비를 확보하고 역광을 막는다. 조명은 고정 설정으로 운영하고, 카메라 노출은 수동 고정한다. 눈 영역 품질 점수(밝기, 대비, 반사)를 계속 측정해 임계값 이하면 조명 조정을 안내한다. 정밀도가 더 필요하면 근적외선(850nm) 보조 조명 + IR 투과 카메라로 동공 검출을 보강하는 옵션을 둔다.
+  3. **마이크**: 화자별 핀마이크의 VAD 발화 상태로 시선을 "말할 때 / 들을 때"로 구분한다. 대화 중 듣는 사람이 말하는 사람을 더 오래 보는 경향을 사전 확률로 써서 응시 판정을 보정하고(HMM 평활화), 시선 신뢰도가 낮을 때 판정 흔들림을 줄인다.
+- **Rationale**: 1:1 대화의 핵심 질문은 "상대 얼굴을 보는가"이다. 1m 거리에서 얼굴 영역은 약 10° 이상이라 3~5° 오차의 RGB 추정으로 충분하고, 조명 통제가 정확도 저하의 가장 큰 원인을 없앤다. 착용형 장비가 없어 실제 고객 미팅에도 쓸 수 있다.
+- **Alternatives considered**: 안경형 아이트래커 — 정밀하지만 고객에게 착용을 요청할 수 없다.
 
-### R3. 배포 형태 (FR-018)
-- **Decision**: 고정형 인터뷰실 워크스테이션(RTX 4070 Ti 이상, VRAM 12GB+).
-- **Rationale**: 2인 × 4모달리티 동시 추론과 ASR을 지연 목표 안에 처리하려면 데스크톱 GPU가 단순하고 저렴하다.
-- **Alternatives considered**: Jetson AGX Orin 이동형 — TensorRT 최적화 부담이 커서 v2 이후.
+### R3. 배포 형태
+- **Decision**: RTX 4070 이상 GPU를 장착한 노트북 또는 데스크톱. 최소 사양은 노트북 RTX 4070(VRAM 8GB)으로 맞추고, 데스크톱(VRAM 12GB 이상)에서는 더 큰 모델을 선택적으로 쓴다.
+- **Rationale**: 노트북을 지원하면 고객사 방문 미팅과 회의실 이동이 가능하다.
+- **설계 영향**:
+  - **VRAM 예산(8GB)**: 얼굴(MediaPipe CPU + AU/VA ONNX ~0.8GB), 시선 L2CS-Net ~0.3GB, emotion2vec ~0.4GB, faster-whisper large-v3-turbo int8 ~1.6GB, 텍스트 감성 ~0.5GB. 여유 포함 약 5GB로 운영한다.
+  - **하드웨어 프로필**: `laptop`(영상 720p 30fps 처리, whisper turbo int8)과 `desktop`(1080p 60fps, whisper large-v3 int8_float16) 두 가지를 설정 파일로 제공한다.
+  - **USB 대역폭**: 노트북은 카메라 2대를 MJPEG으로 받고, 가능하면 서로 다른 USB 컨트롤러(또는 Thunderbolt 독)에 연결한다.
+  - **발열**: GPU 온도·클록을 감시해 과열 시 영상 fps를 단계적으로 낮춘다.
+  - **전원**: 노트북은 AC 전원 연결 상태를 시작 조건으로 점검한다.
+- **Alternatives considered**: Jetson AGX Orin — TensorRT 최적화 부담이 커서 제외.
 
 ## 기술 선택
 
 ### R4. 시간 동기화
 - **Decision**: 모든 장치를 단일 호스트에서 캡처하고, 캡처 시점에 `pylsl.local_clock()` 타임스탬프를 붙인다. 오디오는 블록 단위 타임스탬프에 샘플 오프셋을 더한다.
-- **Rationale**: 단일 단조 시계로 20ms 정렬 목표를 맞출 수 있고, 외부 장치(아이트래커, 생체신호)도 LSL로 붙일 수 있다.
+- **Rationale**: 단일 단조 시계로 20ms 정렬 목표를 맞출 수 있다.
 
 ### R5. 얼굴 분석
-- **Decision**: MediaPipe Face Landmarker(검출·랜드마크·블렌드셰이프) → 정렬된 얼굴 크롭을 LibreFace(AU 강도)와 HSEmotion(valence/arousal)에 입력한다.
-- **Rationale**: MediaPipe는 CPU에서도 빠르고, LibreFace·HSEmotion은 ONNX 변환이 가능하다.
-- **Alternatives considered**: OpenFace 2.0 — 정확하지만 C++ 빌드 의존성이 무겁다. Py-Feat — 편리하지만 실시간에는 느리다.
+- **Decision**: MediaPipe Face Landmarker(검출·랜드마크·홍채·블렌드셰이프) → 정렬된 얼굴 크롭을 LibreFace(AU 강도)와 HSEmotion(valence/arousal)에 입력한다.
+- **Rationale**: MediaPipe는 CPU에서 빨라 GPU 예산을 아끼고, LibreFace·HSEmotion은 ONNX 변환이 가능하다.
+- **Alternatives considered**: OpenFace 2.0 — C++ 빌드 의존성이 무겁다. Py-Feat — 실시간에는 느리다.
 
 ### R6. 음성·텍스트
-- **Decision**: Silero VAD → 발화 구간별 openSMILE eGeMAPS(운율), emotion2vec(음성 VA), faster-whisper large-v3(한국어 ASR, int8_float16) → 한국어 감성 분류 모델(KcELECTRA 계열 파인튜닝).
-- **Rationale**: 화자별 채널 분리로 diarization이 불필요하다. faster-whisper는 실시간 스트리밍 청크 처리가 가능하다.
+- **Decision**: Silero VAD → 발화 구간별 openSMILE eGeMAPS(운율·발화 속도), emotion2vec(음성 VA), faster-whisper(한국어 ASR, 프로필별 모델) → 한국어 감성 분류(KcELECTRA 계열 파인튜닝) + 의문문 판별(종결어미 규칙 + 분류기).
+- **Rationale**: 화자별 채널 분리로 화자 분리(diarization)가 필요 없다. 질문 수는 세일즈 코칭 핵심 지표다.
 - **Alternatives considered**: 클라우드 STT — 헌장 I(온프레미스) 위반.
 
 ### R7. 메시지 버스
-- **Decision**: Redis Streams(로컬 Docker), 메시지 직렬화는 msgpack, 스키마는 pydantic으로 검증.
-- **Rationale**: 소비자 그룹과 재생(replay)을 지원하고 운영이 단순하다.
-- **Alternatives considered**: ZeroMQ — 더 빠르지만 영속·재생을 직접 구현해야 한다. Kafka — 단일 장비에는 과하다.
+- **Decision**: Redis Streams(로컬 Docker), msgpack 직렬화, pydantic 스키마 검증.
+- **Rationale**: 소비자 그룹과 재생을 지원하고 노트북에서도 가볍다.
 
-### R8. 융합
-- **Decision**: 1초 윈도우(0.5초 hop)로 모달리티별 지표를 평균하고, 신뢰도 가중 평균을 기본으로 한다. 라벨 데이터가 확보되면 LightGBM 융합기로 교체한다.
+### R8. 융합과 핵심 순간
+- **Decision**: 1초 윈도우(0.5초 hop)로 모달리티별 지표를 평균하고 신뢰도 가중 평균을 기본으로 한다. 핵심 순간은 사용자 정의 키워드(가격, 경쟁사, 계약 조건 등) 언급 후 10초 안에 고객 반응 변화량(z-score)이 임계값을 넘을 때 기록한다. 라벨 데이터가 쌓이면 LightGBM 융합기로 교체한다.
 - **Rationale**: 헌장 VI(Simplicity First). 결측 처리가 쉽다.
 
 ### R9. 한국어 검증 데이터
-- **Decision**: AI-Hub 공개 한국어 감정 음성·영상 데이터셋으로 파인튜닝·검증하고, 자체 연출 세션 20건 이상을 사람 라벨링해 SC-006·SC-007 평가셋으로 쓴다.
+- **Decision**: AI-Hub 공개 한국어 감정 음성·영상 데이터로 파인튜닝·검증하고, 자체 세일즈 롤플레이 세션 20건 이상을 사람 주석(발화 구간, 응시, valence)해 SC-005~SC-008 평가셋으로 쓴다.
 - **Rationale**: 공개 모델 대부분이 서구권 데이터로 학습되어 한국인 화자 성능을 검증해야 한다.
