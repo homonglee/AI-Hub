@@ -5,7 +5,7 @@
 | Method | Path | 설명 |
 |---|---|---|
 | GET | `/api/devices` | 연결된 카메라·마이크 목록 |
-| GET | `/api/system` | GPU 모델·VRAM·온도, 전원 상태, 적용 하드웨어 프로필 |
+| GET | `/api/system` | GPU 모델·VRAM 사용량·사용률, 드라이버·CUDA 버전 |
 | POST | `/api/sessions` | 세션 생성 `{title, mode, coach, sales_rep_id, topics[], baseline_sec, retention_days}` |
 | POST | `/api/sessions/{id}/lighting-check` | 화자별 눈 영역 품질 점검 결과와 조명 조정 안내 |
 | POST | `/api/sessions/{id}/participants` | 참여자·장치 할당 `{slot, role, camera_device, mic_channel}` |

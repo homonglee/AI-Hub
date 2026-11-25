@@ -27,7 +27,7 @@
 | `affect:{sid}:interaction` | fusion | api, storage | InteractionMetric 필드 |
 | `affect:{sid}:key_moment` | fusion | api, storage | KeyMoment 필드 |
 | `affect:{sid}:hint` | coaching | api(코치 화면 전용), storage | CoachingHint 필드 |
-| `affect:{sid}:device` | capture, hw | api | `{device, status: "ok"\|"lost"\|"degraded", detail}` — 조명 품질 경고, GPU 과열, AC 전원 해제 포함 |
+| `affect:{sid}:device` | capture, system | api | `{device, status: "ok"\|"lost"\|"degraded", detail}` — 조명 품질 경고, VRAM 한도 초과 포함 |
 
 ## 불변 조건
 

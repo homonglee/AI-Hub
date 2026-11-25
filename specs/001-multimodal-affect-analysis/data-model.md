@@ -9,7 +9,6 @@
 | coach | text | 코치 |
 | sales_rep_id | FK SalesRep | 코칭 대상 |
 | topics | text[] | 핵심 주제 키워드(가격, 경쟁사 등) |
-| hw_profile | enum | `laptop`, `desktop` |
 | status | enum | `preparing` → `baseline` → `live` → `ended` → `purged` |
 | started_at / ended_at | timestamptz | |
 | baseline_sec | int | 기준선 구간 길이(기본 90초) |

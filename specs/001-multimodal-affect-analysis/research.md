@@ -16,15 +16,13 @@
 - **Alternatives considered**: 안경형 아이트래커 — 정밀하지만 고객에게 착용을 요청할 수 없다.
 
 ### R3. 배포 형태
-- **Decision**: RTX 4070 이상 GPU를 장착한 노트북 또는 데스크톱. 최소 사양은 노트북 RTX 4070(VRAM 8GB)으로 맞추고, 데스크톱(VRAM 12GB 이상)에서는 더 큰 모델을 선택적으로 쓴다.
-- **Rationale**: 노트북을 지원하면 고객사 방문 미팅과 회의실 이동이 가능하다.
+- **Decision**: RTX 4070 이상 GPU(VRAM 12GB 이상)를 장착한 데스크톱 한 대를 회의실에 고정 설치한다. 개발·테스트·배포 모두 이 사양을 기준으로 한다.
+- **Rationale**: 장비가 한 종류라 설정과 성능 검증이 단순하다. 고정 설치라 카메라·조명·마이크 배치를 한 번 맞추면 세션마다 다시 조정할 필요가 없다.
 - **설계 영향**:
-  - **VRAM 예산(8GB)**: 얼굴(MediaPipe CPU + AU/VA ONNX ~0.8GB), 시선 L2CS-Net ~0.3GB, emotion2vec ~0.4GB, faster-whisper large-v3-turbo int8 ~1.6GB, 텍스트 감성 ~0.5GB. 여유 포함 약 5GB로 운영한다.
-  - **하드웨어 프로필**: `laptop`(영상 720p 30fps 처리, whisper turbo int8)과 `desktop`(1080p 60fps, whisper large-v3 int8_float16) 두 가지를 설정 파일로 제공한다.
-  - **USB 대역폭**: 노트북은 카메라 2대를 MJPEG으로 받고, 가능하면 서로 다른 USB 컨트롤러(또는 Thunderbolt 독)에 연결한다.
-  - **발열**: GPU 온도·클록을 감시해 과열 시 영상 fps를 단계적으로 낮춘다.
-  - **전원**: 노트북은 AC 전원 연결 상태를 시작 조건으로 점검한다.
-- **Alternatives considered**: Jetson AGX Orin — TensorRT 최적화 부담이 커서 제외.
+  - **VRAM 예산(12GB, 사용 한도 10GB)**: 얼굴(MediaPipe CPU + AU/VA ONNX ~0.8GB), 시선 L2CS-Net ~0.3GB, emotion2vec ~0.4GB, faster-whisper large-v3 int8_float16 ~3GB, 텍스트 감성 ~0.5GB. 여유 포함 약 6GB.
+  - **처리 설정**: 영상 1080p 60fps, 단일 설정 파일(`deploy/config.yaml`)로 관리한다.
+  - **카메라 연결**: 카메라 2대는 MJPEG으로 받고, 메인보드 후면 USB 3 포트에 나눠 연결한다.
+- **Alternatives considered**: RTX 4070 노트북 — VRAM 8GB와 발열 문제로 모델 축소와 별도 설정이 필요해 제외. Jetson AGX Orin — TensorRT 최적화 부담이 커서 제외.
 
 ## 기술 선택
 
@@ -38,13 +36,13 @@
 - **Alternatives considered**: OpenFace 2.0 — C++ 빌드 의존성이 무겁다. Py-Feat — 실시간에는 느리다.
 
 ### R6. 음성·텍스트
-- **Decision**: Silero VAD → 발화 구간별 openSMILE eGeMAPS(운율·발화 속도), emotion2vec(음성 VA), faster-whisper(한국어 ASR, 프로필별 모델) → 한국어 감성 분류(KcELECTRA 계열 파인튜닝) + 의문문 판별(종결어미 규칙 + 분류기).
+- **Decision**: Silero VAD → 발화 구간별 openSMILE eGeMAPS(운율·발화 속도), emotion2vec(음성 VA), faster-whisper large-v3(한국어 ASR, int8_float16) → 한국어 감성 분류(KcELECTRA 계열 파인튜닝) + 의문문 판별(종결어미 규칙 + 분류기).
 - **Rationale**: 화자별 채널 분리로 화자 분리(diarization)가 필요 없다. 질문 수는 세일즈 코칭 핵심 지표다.
 - **Alternatives considered**: 클라우드 STT — 헌장 I(온프레미스) 위반.
 
 ### R7. 메시지 버스
 - **Decision**: Redis Streams(로컬 Docker), msgpack 직렬화, pydantic 스키마 검증.
-- **Rationale**: 소비자 그룹과 재생을 지원하고 노트북에서도 가볍다.
+- **Rationale**: 소비자 그룹과 재생을 지원하고 단일 장비에서 운영이 단순하다.
 
 ### R8. 융합과 핵심 순간
 - **Decision**: 1초 윈도우(0.5초 hop)로 모달리티별 지표를 평균하고 신뢰도 가중 평균을 기본으로 한다. 핵심 순간은 사용자 정의 키워드(가격, 경쟁사, 계약 조건 등) 언급 후 10초 안에 고객 반응 변화량(z-score)이 임계값을 넘을 때 기록한다. 라벨 데이터가 쌓이면 LightGBM 융합기로 교체한다.
